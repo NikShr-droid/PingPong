@@ -12,6 +12,14 @@ const paddleWidth = 18,
     netWidth = 5,
     netColor = "WHITE";
 
+// Difficulty levels
+const difficulties = {
+    easy: { speed: 6, maxSpeed: 30 },
+    medium: { speed: 8, maxSpeed: 40 },
+    hard: { speed: 12, maxSpeed: 50 }
+};
+let currentDifficulty = 'medium';
+
 // Draw net on canvas
 function drawNet() {
     for (let i = 0; i <= canvas.height; i += 15) {
@@ -60,13 +68,86 @@ const com = createPaddle(canvas.width - paddleWidth, canvas.height / 2 - paddleH
 // Define ball object
 const ball = createBall(canvas.width / 2, canvas.height / 2, ballRadius, initialBallSpeed, initialBallSpeed, "WHITE");
 
-// Update user paddle position based on mouse movement
-canvas.addEventListener('mousemove', movePaddle);
+// Game state
+let isPaused = true;
+let gameState = 'menu'; // 'menu' or 'playing'
 
+// Difficulty menu button positions
+const difficultyButtons = [
+    { label: 'Easy', value: 'easy', x: null, y: null, width: 220, height: 70 },
+    { label: 'Medium', value: 'medium', x: null, y: null, width: 220, height: 70 },
+    { label: 'Hard', value: 'hard', x: null, y: null, width: 220, height: 70 }
+];
+
+// Calculate button positions after canvas is sized
+function setButtonPositions() {
+    const startY = canvas.height / 2 + 60;
+    difficultyButtons.forEach((btn, i) => {
+        btn.x = canvas.width / 2 - btn.width / 2;
+        btn.y = startY + i * (btn.height + 20);
+    });
+}
+setButtonPositions();
+
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    setButtonPositions();
+});
+
+// Update user paddle position based on mouse movement (only in playing state)
 function movePaddle(event) {
     const rect = canvas.getBoundingClientRect();
     user.y = event.clientY - rect.top - user.height / 2;
 }
+
+canvas.addEventListener('mousemove', (event) => {
+    if (gameState !== 'playing') return;
+    movePaddle(event);
+});
+
+// Handle difficulty selection and start game from main menu
+canvas.addEventListener('click', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    // Difficulty selection in menu or paused state
+    if (gameState === 'menu' || (gameState === 'playing' && isPaused)) {
+        for (const btn of difficultyButtons) {
+            if (
+                mouseX >= btn.x &&
+                mouseX <= btn.x + btn.width &&
+                mouseY >= btn.y &&
+                mouseY <= btn.y + btn.height
+            ) {
+                // If difficulty changed, reset scores and ball
+                if (currentDifficulty !== btn.value) {
+                    currentDifficulty = btn.value;
+                    ball.speed = difficulties[currentDifficulty].speed;
+                    ball.velocityX = difficulties[currentDifficulty].speed;
+                    ball.velocityY = difficulties[currentDifficulty].speed;
+                    user.score = 0;
+                    com.score = 0;
+                    resetBall();
+                }
+                // If in menu, start game
+                if (gameState === 'menu') {
+                    gameState = 'playing';
+                    isPaused = false;
+                }
+                break;
+            }
+        }
+    }
+});
+
+// Pause/unpause game on spacebar/escape press (only in playing state)
+document.addEventListener('keydown', (event) => {
+    if (gameState === 'playing' && (event.code === 'Escape' || event.code === 'Space')) {
+        isPaused = !isPaused;
+    }
+});
 
 // Check for collision between ball and paddle
 function collision(b, p) {
@@ -80,11 +161,14 @@ function resetBall() {
     ball.x = canvas.width / 2;
     ball.y = Math.random() * (canvas.height - ball.radius * 2) + ball.radius;
     ball.velocityX = -ball.velocityX;
-    ball.speed = initialBallSpeed;
+    // Set speed to current difficulty's speed
+    ball.speed = difficulties[currentDifficulty].speed;
 }
 
 // Update game logic
 function update() {
+    if (gameState !== 'playing' || isPaused) return;
+
     // Check for score and reset ball if necessary
     if (ball.x - ball.radius < 0) {
         com.score++;
@@ -127,6 +211,28 @@ function update() {
 function render() {
     // Clear canvas with black screen
     drawRect(0, 0, canvas.width, canvas.height, "BLACK");
+
+    if (gameState === 'menu' || (gameState === 'playing' && isPaused)) {
+        // Draw title card
+        drawText("PONG", canvas.width / 2, canvas.height / 2 - 100, "WHITE", 120, 'bold');
+        drawText("Select Difficulty", canvas.width / 2, canvas.height / 2, "GRAY", 48, 'bold');
+        // Draw difficulty buttons
+        difficultyButtons.forEach(btn => {
+            context.fillStyle = btn.value === currentDifficulty ? "#444" : "#222";
+            context.fillRect(btn.x, btn.y, btn.width, btn.height);
+            context.strokeStyle = "WHITE";
+            context.lineWidth = 3;
+            context.strokeRect(btn.x, btn.y, btn.width, btn.height);
+            drawText(btn.label, btn.x + btn.width / 2, btn.y + btn.height / 2 + 18, "WHITE", 40, 'bold');
+        });
+        if (gameState === 'menu') {
+            drawText("Click a button to start", canvas.width / 2, canvas.height - 80, "GRAY", 32, 'bold');
+        } else {
+            drawText("Paused - Click difficulty to change", canvas.width / 2, canvas.height - 80, "GRAY", 32, 'bold');
+        }
+        return;
+    }
+
     drawNet();
 
     // Draw scores
@@ -140,6 +246,10 @@ function render() {
     // Draw ball
     drawCircle(ball.x, ball.y, ball.radius, ball.color);
 
+    // Draw pause text if paused
+    if (isPaused) {
+        drawText("PAUSED", canvas.width / 2, canvas.height / 2, "WHITE", 60, 'bold');
+    }
 }
 
 
